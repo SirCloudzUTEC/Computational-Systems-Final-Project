@@ -234,7 +234,15 @@ static void *movement_executor_thread(void *arg) {
 static void *pacman_publisher_thread(void *arg) {
     (void)arg;
     while (1) {
-        sem_wait(&pub_sem);
+        /* timedwait para no quedar bloqueado si game_over llega sin post */
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec += 1;
+        int r = sem_timedwait(&pub_sem, &ts);
+        if (r < 0) {
+            if (shm->game_over) break;
+            continue;
+        }
         pthread_mutex_lock(&pub_mtx);
         if (!pub_pending) {
             pthread_mutex_unlock(&pub_mtx);

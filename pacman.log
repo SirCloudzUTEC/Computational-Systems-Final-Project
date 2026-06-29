@@ -1,0 +1,110 @@
+[3704.469] [P0] Iniciando scheduler_process
+[3704.469] [P0] Memoria compartida y semáforos inicializados
+[3704.469] [P0] Mapa cargado: 10 filas x 10 cols
+[3704.469] [P0] Pac-Man inicial: (5,4)
+[3704.469] [P0] Procesos creados: P1=26149 P2=26150 P3=26148
+[3704.470] [P2] Iniciando enemy_process
+[3704.470] [P1] Iniciando pacman_process
+[3704.470] [P1-reader] Encolado: 'DOWN'
+[3704.470] [P1-reader] Encolado: 'RIGHT'
+[3704.470] [P1-reader] Encolado: 'SET_PRIORITY 15'
+[3704.470] [P1-reader] Encolado: 'DOWN'
+[3704.470] [P1-reader] Encolado: 'RIGHT'
+[3704.470] [P1-reader] Encolado: 'SET_PRIORITY 5'
+[3704.470] [P1-reader] Encolado: 'DOWN'
+[3704.470] [P1-reader] Encolado: 'RIGHT'
+[3704.470] [P1-reader] Encolado: 'SET_PRIORITY 1'
+[3704.470] [P1-reader] Fin de archivo de movimientos
+[3704.670] [P0] tick=0 prioridad_efectiva pacman=20(base 20,wait 1) enemy=25(base 25,wait 0)
+[3704.670] [P0] tick=0 → turno ENEMY (P20=20, E25=25)
+[3704.670] [P2-ctrl] Turno recibido — despertando ghost threads
+[3704.670] [P2-ghost2] → (4,4)
+[3704.670] [P2-ghost3] → (3,5)
+[3704.670] [P2-ghost0] SET_PRIORITY 10 → enviado a P0
+[3704.670] [P2-ghost1] → (6,5)
+[3704.670] [P2-ctrl] Todos los fantasmas completaron su movimiento
+[3705.070] [P0] Prioridad Enemy actualizada → 10
+[3705.070] [P0] tick=1 prioridad_efectiva pacman=22(base 20,wait 0) enemy=10(base 10,wait 1)
+[3705.070] [P0] tick=1 → turno PACMAN (P20=20, E10=10)
+[3705.070] [P1-exec] Pac-Man → (5,5) score=10
+[3705.071] [P1-pub] Publicado: (5,5) score=10
+[3705.471] [P0] tick=2 prioridad_efectiva pacman=20(base 20,wait 0) enemy=12(base 10,wait 2)
+[3705.471] [P0] tick=2 → turno PACMAN (P20=20, E10=10)
+[3705.471] [P1-exec] Pac-Man → (6,5) score=20
+[3705.471] [P1-pub] Publicado: (6,5) score=20
+[3705.487] [P2-collision] ¡Colisión Pac-Man con fantasma 1 en (6,5)!
+[3705.871] [P0] ¡COLISIÓN con fantasma 1! Vidas restantes: 2
+[3705.871] [P0] tick=3 prioridad_efectiva pacman=20(base 20,wait 0) enemy=14(base 10,wait 3)
+[3705.871] [P0] tick=3 → turno PACMAN (P20=20, E10=10)
+[3705.871] [P1-exec] Solicitud SET_PRIORITY 15 enviada a P0
+[3705.871] [P1-pub] Publicado: (6,5) score=20
+[3705.882] [P2-collision] ¡Colisión Pac-Man con fantasma 1 en (6,5)!
+[3706.271] [P0] Prioridad Pac-Man actualizada → 15
+[3706.271] [P0] ¡COLISIÓN con fantasma 1! Vidas restantes: 1
+[3706.271] [P0] tick=4 prioridad_efectiva pacman=15(base 15,wait 1) enemy=16(base 10,wait 0)
+[3706.271] [P0] tick=4 → turno ENEMY (P15=15, E10=10)
+[3706.271] [P2-ctrl] Turno recibido — despertando ghost threads
+[3706.271] [P2-ghost2] → (5,4)
+[3706.271] [P2-ghost0] SET_PRIORITY 2 → enviado a P0
+[3706.271] [P2-ghost3] → (2,5)
+[3706.271] [P2-ghost1] → (5,5)
+[3706.272] [P2-ctrl] Todos los fantasmas completaron su movimiento
+[3706.671] [P0] Prioridad Enemy actualizada → 2
+[3706.671] [P0] tick=5 prioridad_efectiva pacman=17(base 15,wait 0) enemy=2(base 2,wait 1)
+[3706.671] [P0] tick=5 → turno PACMAN (P15=15, E2=2)
+[3706.671] [P1-exec] Movimiento DOWN bloqueado por pared
+[3706.671] [P1-pub] Publicado: (6,5) score=20
+[3707.072] [P0] tick=6 prioridad_efectiva pacman=15(base 15,wait 0) enemy=4(base 2,wait 2)
+[3707.072] [P0] tick=6 → turno PACMAN (P15=15, E2=2)
+[3707.072] [P1-exec] Pac-Man → (7,5) score=30
+[3707.072] [P1-pub] Publicado: (7,5) score=30
+[3707.472] [P0] tick=7 prioridad_efectiva pacman=15(base 15,wait 0) enemy=6(base 2,wait 3)
+[3707.472] [P0] tick=7 → turno PACMAN (P15=15, E2=2)
+[3707.472] [P1-exec] Solicitud SET_PRIORITY 5 enviada a P0
+[3707.472] [P1-pub] Publicado: (7,5) score=30
+[3707.872] [P0] Prioridad Pac-Man actualizada → 5
+[3707.872] [P0] tick=8 prioridad_efectiva pacman=5(base 5,wait 1) enemy=8(base 2,wait 0)
+[3707.872] [P0] tick=8 → turno ENEMY (P5=5, E2=2)
+[3707.872] [P2-ctrl] Turno recibido — despertando ghost threads
+[3707.872] [P2-ghost2] Movimiento RIGHT bloqueado
+[3707.872] [P2-ghost0] SET_PRIORITY 0 → enviado a P0
+[3707.872] [P2-ghost1] → (4,5)
+[3707.872] [P2-ghost3] → (1,5)
+[3707.872] [P2-ctrl] Todos los fantasmas completaron su movimiento
+[3708.273] [P0] tick=9 prioridad_efectiva pacman=7(base 5,wait 0) enemy=2(base 2,wait 1)
+[3708.273] [P0] tick=9 → turno PACMAN (P5=5, E2=2)
+[3708.273] [P1-exec] Pac-Man → (7,6) score=40
+[3708.273] [P1-pub] Publicado: (7,6) score=40
+[3708.672] [P0] tick=10 prioridad_efectiva pacman=5(base 5,wait 0) enemy=4(base 2,wait 2)
+[3708.672] [P0] tick=10 → turno PACMAN (P5=5, E2=2)
+[3708.672] [P1-exec] Pac-Man → (8,6) score=50
+[3708.672] [P1-pub] Publicado: (8,6) score=50
+[3709.072] [P0] tick=11 prioridad_efectiva pacman=5(base 5,wait 1) enemy=6(base 2,wait 0)
+[3709.072] [P0] tick=11 → turno ENEMY (P5=5, E2=2)
+[3709.072] [P2-ctrl] Turno recibido — despertando ghost threads
+[3709.072] [P2-ghost2] Movimiento RIGHT bloqueado
+[3709.072] [P2-ghost1] → (3,5)
+[3709.072] [P2-ghost0] SET_PRIORITY 0 → enviado a P0
+[3709.072] [P2-ghost3] Movimiento LEFT bloqueado
+[3709.072] [P2-ctrl] Todos los fantasmas completaron su movimiento
+[3709.472] [P0] tick=12 prioridad_efectiva pacman=7(base 5,wait 0) enemy=2(base 2,wait 1)
+[3709.472] [P0] tick=12 → turno PACMAN (P5=5, E2=2)
+[3709.472] [P1-exec] Solicitud SET_PRIORITY 1 enviada a P0
+[3709.472] [P1-pub] Publicado: (8,6) score=50
+[3709.873] [P0] Prioridad Pac-Man actualizada → 1
+[3709.873] [P0] tick=13 prioridad_efectiva pacman=1(base 1,wait 1) enemy=4(base 2,wait 0)
+[3709.873] [P0] tick=13 → turno ENEMY (P1=1, E2=2)
+[3709.873] [P2-ctrl] Turno recibido — despertando ghost threads
+[3709.873] [P2-ghost2] Movimiento RIGHT bloqueado
+[3709.873] [P2-ghost0] SET_PRIORITY 0 → enviado a P0
+[3709.873] [P2-ghost3] Movimiento LEFT bloqueado
+[3709.873] [P2-ghost1] → (2,5)
+[3709.873] [P2-ctrl] Todos los fantasmas completaron su movimiento
+[3710.273] [P0] tick=14 prioridad_efectiva pacman=3(base 1,wait 0) enemy=2(base 2,wait 1)
+[3710.273] [P0] tick=14 → turno PACMAN (P1=1, E2=2)
+[3710.273] [P1-exec] Sin más movimientos
+[3710.273] [P1] pacman_process terminado
+[3710.673] [P0] Fin del juego: Pac-Man sin instrucciones (tick 14)
+[3710.673] [P0] Score final: 50 | Vidas: 1 | Ticks: 15
+[3710.673] [P2] enemy_process terminado
+[3713.274] [P0] Todos los procesos terminaron. ¡Fin!

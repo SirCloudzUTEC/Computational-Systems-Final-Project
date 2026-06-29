@@ -156,8 +156,11 @@ static void *enemy_controller_thread(void *arg) {
         LOG("[P2-ctrl] Todos los fantasmas completaron su movimiento");
     }
 
-    /* liberar ghost threads bloqueados */
-    for (int i = 0; i < NUM_GHOSTS; i++) sem_post(&sem_ghost_go[i]);
+    /* liberar ghost threads bloqueados (2 posts por si acaso ya consumieron uno) */
+    for (int i = 0; i < NUM_GHOSTS; i++) {
+        sem_post(&sem_ghost_go[i]);
+        sem_post(&sem_ghost_go[i]);
+    }
     return NULL;
 }
 

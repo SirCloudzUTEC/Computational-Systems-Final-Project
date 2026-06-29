@@ -3,11 +3,14 @@
  * ─────────────────────────
  * Renderiza en terminal usando ncurses:
  *   - Laberinto con colores
- *   - Pac-Man animado (C > ) < v ^)
+ *   - Pac-Man animado (> < ^ v / @)
  *   - Fantasmas con colores
  *   - HUD: tick, score, vidas, power-pellet, prioridades
  *
  * Se bloquea en sem_render_ready (señalizado por P0 en cada tick).
+ *
+ * FIX: retry loop al abrir SHM (timing race con P0)
+ * FIX: cleanup ncurses en cualquier salida
  */
 
 #include <stdio.h>
@@ -19,49 +22,58 @@
 #include <semaphore.h>
 #include <ncurses.h>
 #include <signal.h>
+#include <errno.h>
 
 #include "shared.h"
 #include "utils.h"
 
 /* ── Pares de colores ncurses ── */
-#define COL_WALL      1   /* azul sobre negro  */
-#define COL_PATH      2   /* negro sobre negro  */
-#define COL_PELLET    3   /* blanco sobre negro */
-#define COL_PACMAN    4   /* amarillo sobre negro */
-#define COL_GHOST0    5   /* rojo */
-#define COL_GHOST1    6   /* cian */
-#define COL_GHOST2    7   /* magenta */
-#define COL_GHOST3    8   /* verde */
-#define COL_HUD       9   /* blanco brillante */
-#define COL_POWER    10   /* amarillo sobre negro (power activo) */
-#define COL_GAMEOVER 11   /* rojo brillante */
+#define COL_WALL      1
+#define COL_PATH      2
+#define COL_PELLET    3
+#define COL_PACMAN    4
+#define COL_GHOST0    5
+#define COL_GHOST1    6
+#define COL_GHOST2    7
+#define COL_GHOST3    8
+#define COL_HUD       9
+#define COL_POWER    10
+#define COL_GAMEOVER 11
 
 static SharedState *shm    = NULL;
 static int          shm_fd = -1;
+static int ncurses_active  = 0;
 
-/* ── Última dirección de Pac-Man (para sprite) ── */
 static int prev_pac_x = -1;
 static int prev_pac_y = -1;
 static int last_dir   = 0;  /* 0=R 1=L 2=U 3=D */
 
-/* símbolos según dirección */
 static const char *pac_sym(int dir, int powered) {
-    if (powered) {
-        /* fantasmas asustados: Pac-Man "superpoderoso" */
-        (void)dir;
-        return "@";
-    }
+    if (powered) { (void)dir; return "@"; }
     const char *s[] = { ">", "<", "^", "v" };
     return s[dir];
 }
 
 static const char *ghost_sym[NUM_GHOSTS] = { "A", "B", "C", "D" };
 
-/* ─────────────────────────────────────────────────────────
-   Inicializar ncurses
-   ───────────────────────────────────────────────────────── */
+static void cleanup_ncurses(void) {
+    if (ncurses_active) {
+        endwin();
+        ncurses_active = 0;
+    }
+}
+
+static void sig_handler(int sig) {
+    (void)sig;
+    cleanup_ncurses();
+    _exit(0);
+}
+
 static void init_ncurses(void) {
+    signal(SIGTERM, sig_handler);
+    signal(SIGINT,  sig_handler);
     initscr();
+    ncurses_active = 1;
     cbreak();
     noecho();
     curs_set(0);
@@ -84,16 +96,12 @@ static void init_ncurses(void) {
     }
 }
 
-/* ─────────────────────────────────────────────────────────
-   Renderizar frame
-   ───────────────────────────────────────────────────────── */
 static void render_frame(void) {
     clear();
 
     int rows = shm->map_rows;
     int cols = shm->map_cols;
 
-    /* ── Leer estado (bajo mutex mínimo) ── */
     pthread_mutex_lock(&shm->mutex_pacman_pos);
     int pac_x = shm->pacman_x;
     int pac_y = shm->pacman_y;
@@ -110,17 +118,14 @@ static void render_frame(void) {
     int prio_e  = shm->prioridad_enemy;
     int game_ov = shm->game_over;
 
-    /* actualizar dirección de Pac-Man */
     if (prev_pac_x >= 0) {
-    if      (pac_x > prev_pac_x) last_dir = 0; /* R */
-    else if (pac_x < prev_pac_x) last_dir = 1; /* L */
-    else if (pac_y < prev_pac_y) last_dir = 2; /* U */
-    else if (pac_y > prev_pac_y) last_dir = 3; /* D */
+        if      (pac_x > prev_pac_x) last_dir = 0;
+        else if (pac_x < prev_pac_x) last_dir = 1;
+        else if (pac_y < prev_pac_y) last_dir = 2;
+        else if (pac_y > prev_pac_y) last_dir = 3;
     }
-    /* dirección simple basada en último desplazamiento */
     prev_pac_x = pac_x;
     prev_pac_y = pac_y;
-    
 
     /* ── Mapa ── */
     for (int r = 0; r < rows; r++) {
@@ -141,46 +146,45 @@ static void render_frame(void) {
 
             if (is_pac) {
                 attron(COLOR_PAIR(COL_PACMAN) | A_BOLD);
-                mvprintw(r + 1, c * 2, "%s", pac_sym(last_dir, power > 0));
+                mvprintw(r + 2, c * 2, "%s", pac_sym(last_dir, power > 0));
                 attroff(COLOR_PAIR(COL_PACMAN) | A_BOLD);
-                mvprintw(r + 1, c * 2 + 1, " ");
+                mvprintw(r + 2, c * 2 + 1, " ");
             } else if (ghost_id >= 0) {
                 int cp = COL_GHOST0 + ghost_id;
-                if (power > 0) cp = COL_POWER;  /* fantasmas "asustados" */
+                if (power > 0) cp = COL_POWER;
                 attron(COLOR_PAIR(cp) | A_BOLD);
-                mvprintw(r + 1, c * 2, "%s", ghost_sym[ghost_id]);
+                mvprintw(r + 2, c * 2, "%s", ghost_sym[ghost_id]);
                 attroff(COLOR_PAIR(cp) | A_BOLD);
-                mvprintw(r + 1, c * 2 + 1, " ");
+                mvprintw(r + 2, c * 2 + 1, " ");
             } else if (cell == CELL_WALL) {
                 attron(COLOR_PAIR(COL_WALL));
-                mvprintw(r + 1, c * 2, "██");
+                mvprintw(r + 2, c * 2, "##");
                 attroff(COLOR_PAIR(COL_WALL));
             } else if (cell == CELL_PELLET) {
                 attron(COLOR_PAIR(COL_PELLET) | A_BOLD);
-                mvprintw(r + 1, c * 2, "* ");
+                mvprintw(r + 2, c * 2, "* ");
                 attroff(COLOR_PAIR(COL_PELLET) | A_BOLD);
             } else {
-                mvprintw(r + 1, c * 2, "  ");
+                mvprintw(r + 2, c * 2, "  ");
             }
         }
     }
 
-    /* ── HUD superior ── */
+    /* ── HUD superior (2 líneas) ── */
     attron(COLOR_PAIR(COL_HUD) | A_BOLD);
-    mvprintw(0, 0, " PAC-MAN | Tick: %-4d | Score: %-6d | Vidas: %d | "
-             "Prio P1:%d P2:%d",
+    mvprintw(0, 0, " PAC-MAN CONCURRENTE");
+    mvprintw(1, 0, " Tick:%-4d  Score:%-6d  Vidas:%d  Prio[P1:%d P2:%d]",
              tick, score, lives, prio_p, prio_e);
     attroff(COLOR_PAIR(COL_HUD) | A_BOLD);
 
-    /* ── Power-pellet status ── */
     if (power > 0) {
-        attron(COLOR_PAIR(COL_POWER) | A_BLINK | A_BOLD);
-        mvprintw(0, cols * 2 - 20, " *** POWER %2d *** ", power);
-        attroff(COLOR_PAIR(COL_POWER) | A_BLINK | A_BOLD);
+        attron(COLOR_PAIR(COL_POWER) | A_BOLD);
+        mvprintw(1, cols * 2 - 16, " ** POWER: %2d ** ", power);
+        attroff(COLOR_PAIR(COL_POWER) | A_BOLD);
     }
 
     /* ── Leyenda inferior ── */
-    int bot = rows + 2;
+    int bot = rows + 3;
     attron(COLOR_PAIR(COL_HUD));
     mvprintw(bot, 0, " Fantasmas: ");
     for (int g = 0; g < NUM_GHOSTS; g++) {
@@ -190,52 +194,66 @@ static void render_frame(void) {
         pthread_mutex_lock(&shm->mutex_ghost_pos);
         gx = shm->ghost_x[g]; gy = shm->ghost_y[g];
         pthread_mutex_unlock(&shm->mutex_ghost_pos);
-        printw("[%s:(%d,%d)] ", ghost_sym[g], gx, gy);
+        if (shm->ghost_active[g])
+            printw("[%s:(%d,%d)] ", ghost_sym[g], gx, gy);
         attroff(COLOR_PAIR(cp) | A_BOLD);
     }
     attroff(COLOR_PAIR(COL_HUD));
 
     /* ── Game Over overlay ── */
     if (game_ov) {
-        int mid_r = rows / 2;
-        int mid_c = cols - 10;
-        attron(COLOR_PAIR(COL_GAMEOVER) | A_BOLD | A_BLINK);
-        mvprintw(mid_r,     mid_c, "  ╔══════════════════╗  ");
-        mvprintw(mid_r + 1, mid_c, "  ║   GAME  OVER     ║  ");
-        mvprintw(mid_r + 2, mid_c, "  ║  Score: %-8d ║  ", score);
-        mvprintw(mid_r + 3, mid_c, "  ╚══════════════════╝  ");
-        attroff(COLOR_PAIR(COL_GAMEOVER) | A_BOLD | A_BLINK);
+        int mid_r = rows / 2 + 2;
+        int mid_c = (cols * 2 / 2) - 12;
+        if (mid_c < 0) mid_c = 0;
+        attron(COLOR_PAIR(COL_GAMEOVER) | A_BOLD);
+        mvprintw(mid_r,     mid_c, "  +====================+  ");
+        mvprintw(mid_r + 1, mid_c, "  |    GAME  OVER      |  ");
+        mvprintw(mid_r + 2, mid_c, "  |  Score: %-8d  |  ", score);
+        mvprintw(mid_r + 3, mid_c, "  +====================+  ");
+        attroff(COLOR_PAIR(COL_GAMEOVER) | A_BOLD);
+        attron(COLOR_PAIR(COL_HUD));
         mvprintw(mid_r + 5, mid_c, "  %s", shm->win_reason);
+        attroff(COLOR_PAIR(COL_HUD));
     }
 
     refresh();
 }
 
-/* ─────────────────────────────────────────────────────────
-   main de P3
-   ───────────────────────────────────────────────────────── */
 int main(void) {
-    /* Abrir memoria compartida */
-    shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
-    if (shm_fd < 0) { perror("[P3] shm_open"); return 1; }
+    /* Retry loop: esperar hasta que P0 cree la SHM (puede tardarse ~200ms) */
+    int retries = 30;
+    while (retries-- > 0) {
+        shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
+        if (shm_fd >= 0) break;
+        if (errno != ENOENT) { perror("[P3] shm_open"); return 1; }
+        usleep(50000); /* 50ms */
+    }
+    if (shm_fd < 0) { fprintf(stderr, "[P3] No se pudo abrir SHM\n"); return 1; }
+
     shm = mmap(NULL, sizeof(SharedState), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    if (shm == MAP_FAILED) { perror("[P3] mmap"); return 1; }
+    if (shm == MAP_FAILED) { perror("[P3] mmap"); close(shm_fd); return 1; }
 
     init_ncurses();
 
-    /* Bucle de render: bloqueado en semáforo, dibuja en cada tick */
     while (1) {
-        sem_wait(&shm->sem_render_ready);
+        /* timeout en sem_wait para no quedar bloqueado si P0 muere */
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec += 1;
+        int r = sem_timedwait(&shm->sem_render_ready, &ts);
+        if (r < 0 && errno == ETIMEDOUT) {
+            if (shm->game_over) break;
+            continue;
+        }
         render_frame();
         if (shm->game_over) {
-            /* mostrar pantalla final 2 segundos */
             render_frame();
-            ms_sleep(2500);
+            ms_sleep(3000);
             break;
         }
     }
 
-    endwin();
+    cleanup_ncurses();
     munmap(shm, sizeof(SharedState));
     close(shm_fd);
     return 0;

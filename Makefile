@@ -14,7 +14,8 @@ BIN     = .
 TARGETS = scheduler_process \
           pacman_process     \
           enemy_process      \
-          renderer_process
+          renderer_process   \
+          menu
 
 .PHONY: all clean run
 
@@ -32,12 +33,15 @@ enemy_process: $(SRC)/enemy_process.c include/shared.h include/utils.h
 renderer_process: $(SRC)/renderer_process.c include/shared.h include/utils.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-# Ejecutar con mapa por defecto (300 ticks)
+# Lanzar menú interactivo
 run: all
-	./scheduler_process maps/map.txt 300
+	./menu
+
+menu: $(SRC)/menu.c
+	$(CC) -Wall -Wextra -O2 -g -o $@ $<
 
 clean:
-	rm -f $(TARGETS)
+	rm -f $(TARGETS) menu
 	# limpiar SHM y semáforos POSIX residuales
 	-rm -f /dev/shm/pacman_shm
 	-rm -f /dev/shm/sem.pacman_sem_p1

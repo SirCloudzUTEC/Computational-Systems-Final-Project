@@ -8,18 +8,35 @@
 #include <time.h>
 #include "shared.h"
 
-/* ── logging con timestamp ── */
+/* ── logging a archivo (evita mezclar con ncurses en terminal) ──
+ *
+ * Todos los procesos (P0/P1/P2/P3) escriben en pacman.log en lugar
+ * de stderr, así ncurses puede dibujar sin interferencias.
+ *
+ * Para ver los logs en tiempo real: tail -f pacman.log
+ */
+static FILE *_log_file = NULL;
+
+static inline FILE *log_get_file(void) {
+    if (!_log_file) {
+        _log_file = fopen("pacman.log", "a");
+        if (!_log_file) _log_file = stderr; /* fallback */
+    }
+    return _log_file;
+}
+
 #define LOG(fmt, ...) \
     do { \
         struct timespec _ts; \
         clock_gettime(CLOCK_MONOTONIC, &_ts); \
-        fprintf(stderr, "[%ld.%03ld] " fmt "\n", \
+        FILE *_lf = log_get_file(); \
+        fprintf(_lf, "[%ld.%03ld] " fmt "\n", \
                 (long)_ts.tv_sec, (long)(_ts.tv_nsec / 1000000), ##__VA_ARGS__); \
-        fflush(stderr); \
+        fflush(_lf); \
     } while(0)
 
 /* ── delay configurable entre ticks (ms) ── */
-#define TICK_DELAY_MS 120
+#define TICK_DELAY_MS 400
 
 static inline void ms_sleep(int ms) {
     struct timespec ts = { .tv_sec = ms / 1000,

@@ -364,7 +364,7 @@ static void *signal_thread_fn(void *arg) {
 static void cleanup(void) {
     if (sem_pacman) { sem_close(sem_pacman); sem_unlink(SEM_PACMAN); }
     if (sem_enemy)  { sem_close(sem_enemy);  sem_unlink(SEM_ENEMY);  }
-    sem_unlink(SEM_RENDER);
+    /* SEM_RENDER es embebido en SHM (sem_init), no nombrado — no se hace sem_unlink */
 
     if (shm && shm != MAP_FAILED) {
         pthread_mutex_destroy(&shm->mutex_pacman_pos);
@@ -450,9 +450,11 @@ int main(int argc, char *argv[]) {
     LOG("[P0] Score final: %d | Vidas: %d | Ticks: %d",
         shm->pacman_score, shm->pacman_lives, shm->global_tick);
 
-    /* Liberar semáforos para que P1/P2 puedan terminar */
-    sem_post(sem_pacman);
-    sem_post(sem_enemy);
+    /* Liberar semáforos para que P1/P2 puedan terminar (múltiples posts por seguridad) */
+    sem_post(sem_pacman); sem_post(sem_pacman);
+    sem_post(sem_enemy);  sem_post(sem_enemy);
+    /* señal final al renderer */
+    sem_post(&shm->sem_render_ready);
 
     /* Esperar hijos */
     waitpid(pid_p1, NULL, 0);
