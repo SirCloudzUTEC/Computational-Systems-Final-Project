@@ -41,6 +41,7 @@ static int          shm_fd = -1;
 
 /* ── Última dirección de Pac-Man (para sprite) ── */
 static int prev_pac_x = -1;
+static int prev_pac_y = -1;
 static int last_dir   = 0;  /* 0=R 1=L 2=U 3=D */
 
 /* símbolos según dirección */
@@ -111,12 +112,15 @@ static void render_frame(void) {
 
     /* actualizar dirección de Pac-Man */
     if (prev_pac_x >= 0) {
-        if      (pac_x > prev_pac_x) last_dir = 0; /* R */
-        else if (pac_x < prev_pac_x) last_dir = 1; /* L */
-        else if (pac_y < prev_pac_x) last_dir = 2; /* U — comparación dummy; */
+    if      (pac_x > prev_pac_x) last_dir = 0; /* R */
+    else if (pac_x < prev_pac_x) last_dir = 1; /* L */
+    else if (pac_y < prev_pac_y) last_dir = 2; /* U */
+    else if (pac_y > prev_pac_y) last_dir = 3; /* D */
     }
     /* dirección simple basada en último desplazamiento */
     prev_pac_x = pac_x;
+    prev_pac_y = pac_y;
+    
 
     /* ── Mapa ── */
     for (int r = 0; r < rows; r++) {

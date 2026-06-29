@@ -21,12 +21,9 @@
 #include "shared.h"
 #include "utils.h"
 
-static const char *GHOST_FILES[NUM_GHOSTS] = {
-    "maps/ghost_1_moves.txt",
-    "maps/ghost_2_moves.txt",
-    "maps/ghost_3_moves.txt",
-    "maps/ghost_4_moves.txt",
-};
+/* Las rutas ya no son fijas: se construyen en main() a partir de la
+   variable de entorno MAP_DIR (la setea P0 antes de hacer fork()+exec()). */
+static char ghost_file_paths[NUM_GHOSTS][256];
 
 /* ── Memoria compartida ── */
 static SharedState *shm    = NULL;
@@ -229,6 +226,19 @@ static void *collision_thread_fn(void *arg) {
 int main(void) {
     LOG("[P2] Iniciando enemy_process");
 
+    /* Construir las rutas de los archivos de fantasmas a partir de MAP_DIR,
+       variable de entorno que scheduler_process.c (P0) deja puesta con
+       setenv() antes de hacer fork()+exec() de este proceso. */
+    const char *dir = getenv("MAP_DIR");
+    if (!dir) {
+        fprintf(stderr, "[P2] Falta variable de entorno MAP_DIR\n");
+        return 1;
+    }
+    for (int i = 0; i < NUM_GHOSTS; i++) {
+        snprintf(ghost_file_paths[i], sizeof(ghost_file_paths[i]),
+                 "%s/ghost_%d_moves.txt", dir, i + 1);
+    }
+
     shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
     if (shm_fd < 0) { perror("[P2] shm_open"); return 1; }
     shm = mmap(NULL, sizeof(SharedState), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
@@ -243,9 +253,9 @@ int main(void) {
         ghost_local_y[i] = shm->ghost_y[i];
         sem_init(&sem_ghost_go[i],   0, 0);
         sem_init(&sem_ghost_done[i], 0, 0);
-        ghost_files[i] = fopen(GHOST_FILES[i], "r");
+        ghost_files[i] = fopen(ghost_file_paths[i], "r");
         if (!ghost_files[i])
-            LOG("[P2] Advertencia: no se pudo abrir %s", GHOST_FILES[i]);
+            LOG("[P2] Advertencia: no se pudo abrir %s", ghost_file_paths[i]);
     }
 
     pac_last_x = shm->pacman_x;

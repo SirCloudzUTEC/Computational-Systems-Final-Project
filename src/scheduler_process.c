@@ -37,6 +37,15 @@ static int          shm_fd = -1;
 /* ── estado del scheduler ── */
 static int round_robin_turn = 0;  /* 0=pacman, 1=enemy (para desempate) */
 
+// aging
+// Cada tick que un proceso NO gana, acumula "espera". Esa espera se
+//  convierte en prioridad efectiva extra, así nunca puede quedar
+//  bloqueado indefinidamente sin importar las prioridades base.
+
+#define AGING_FACTOR 2   // puntos de prioridad efectiva por tick de espera
+static int wait_pacman = 0;
+static int wait_enemy  = 0;
+
 /* ── prototipos de hilos ── */
 static void *tick_thread_fn(void *arg);
 static void *scheduler_thread_fn(void *arg);
@@ -55,6 +64,7 @@ static int load_map(const char *path) {
         int len = (int)strlen(line);
         /* quitar \n */
         if (len > 0 && line[len-1] == '\n') { line[--len] = '\0'; }
+        if (len > 0 && line[len-1] == '\r') { line[--len] = '\0'; }
         if (len == 0) continue;
 
         if (shm->map_cols == 0) shm->map_cols = len;
@@ -123,7 +133,7 @@ static int init_shared(void) {
     shm->pacman_score  = 0;
     shm->pacman_power  = 0;
     shm->prioridad_pacman = 20;
-    shm->prioridad_enemy  = 30;
+    shm->prioridad_enemy  = 25;
 
     /* Mutex entre procesos (PTHREAD_PROCESS_SHARED) */
     pthread_mutexattr_t ma;
@@ -258,7 +268,7 @@ static void *scheduler_thread_fn(void *arg) {
         if (shm->game_over) break;
 
         /* check tick máximo */
-        if (shm->global_tick >= shm->max_ticks) {
+        if (cur >= shm->max_ticks) {
             shm->game_over = 1;
             snprintf(shm->win_reason, sizeof(shm->win_reason),
                      "Ticks máximos alcanzados (%d)", shm->max_ticks);
@@ -270,21 +280,31 @@ static void *scheduler_thread_fn(void *arg) {
         if (shm->pacman_power > 0) shm->pacman_power--;
         pthread_mutex_unlock(&shm->mutex_power);
 
-        /* decidir ganador */
+        /* decidir ganador (prioridad base + aging por espera) */
         int pp, pe;
         pthread_mutex_lock(&shm->mutex_priority);
         pp = shm->prioridad_pacman;
         pe = shm->prioridad_enemy;
         pthread_mutex_unlock(&shm->mutex_priority);
 
+        int eff_pp = pp + AGING_FACTOR * wait_pacman;
+        int eff_pe = pe + AGING_FACTOR * wait_enemy;
+
         int winner;
-        if (pp > pe)       winner = 0;
-        else if (pe > pp)  winner = 1;
+        if (eff_pp > eff_pe)      winner = 0;
+        else if (eff_pe > eff_pp) winner = 1;
         else {
             /* round-robin */
             winner = round_robin_turn;
             round_robin_turn ^= 1;
         }
+
+        /* el ganador resetea su espera; el perdedor acumula otro tick */
+        if (winner == 0) { wait_pacman = 0; wait_enemy++; }
+        else              { wait_enemy = 0;  wait_pacman++; }
+
+        LOG("[P0] tick=%d prioridad_efectiva pacman=%d(base %d,wait %d) enemy=%d(base %d,wait %d)",
+            cur, eff_pp, pp, wait_pacman, eff_pe, pe, wait_enemy);
 
         pthread_mutex_lock(&sched_mtx);
         sched_winner = winner;
@@ -364,8 +384,21 @@ static void cleanup(void) {
    main de P0
    ───────────────────────────────────────────────────────── */
 int main(int argc, char *argv[]) {
-    const char *map_path = (argc > 1) ? argv[1] : "maps/map.txt";
-    int max_ticks = (argc > 2) ? atoi(argv[2]) : DEFAULT_MAX_TICKS;
+    if (argc < 2) {
+        fprintf(stderr, "Uso: %s <carpeta_caso> [max_ticks]\n", argv[0]);
+        fprintf(stderr, "Ej:  %s maps/Caso1 300\n", argv[0]);
+        return 1;
+    }
+    const char *map_dir   = argv[1];
+    int         max_ticks = (argc > 2) ? atoi(argv[2]) : DEFAULT_MAX_TICKS;
+
+    char map_path[256];
+    snprintf(map_path, sizeof(map_path), "%s/map.txt", map_dir);
+
+    /* P1 y P2 leen esta variable de entorno para saber de qué carpeta
+       de caso (Caso1/Caso2/Caso3) deben tomar sus archivos de movimiento.
+       setenv() hace que la hereden automáticamente en fork()+execlp(). */
+    setenv("MAP_DIR", map_dir, 1);
 
     LOG("[P0] Iniciando scheduler_process");
 

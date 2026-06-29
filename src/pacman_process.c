@@ -20,7 +20,9 @@
 #include "shared.h"
 #include "utils.h"
 
-#define MOVE_FILE   "maps/pacman_moves.txt"
+/* La ruta del archivo de movimientos ya no es fija: se construye en main()
+   a partir de la variable de entorno MAP_DIR (ver más abajo). */
+static char move_file[256];
 #define QUEUE_SIZE  256
 
 /* ── Cola interna de movimientos ── */
@@ -90,9 +92,9 @@ static int queue_pop(char *out, size_t outsz) {
    ───────────────────────────────────────────────────────── */
 static void *movement_reader_thread(void *arg) {
     (void)arg;
-    FILE *f = fopen(MOVE_FILE, "r");
+    FILE *f = fopen(move_file, "r");
     if (!f) {
-        LOG("[P1-reader] No se pudo abrir %s", MOVE_FILE);
+        LOG("[P1-reader] No se pudo abrir %s", move_file);
         /* insertar token de fin */
         queue_push("EOF");
         return NULL;
@@ -187,12 +189,15 @@ static void *movement_executor_thread(void *arg) {
 
         if (strcmp(move, "EOF") == 0) {
             LOG("[P1-exec] Sin más movimientos");
-            shm->game_over = 1;
-            snprintf(shm->win_reason, sizeof(shm->win_reason),
-                     "Pac-Man sin instrucciones (tick %d)", shm->global_tick);
+            pthread_mutex_lock(&shm->mutex_collision);
+            if (!shm->game_over) {
+                shm->game_over = 1;
+                snprintf(shm->win_reason, sizeof(shm->win_reason),
+                        "Pac-Man sin instrucciones (tick %d)", shm->global_tick);
+            }
+            pthread_mutex_unlock(&shm->mutex_collision);
             break;
         }
-
         /* SET_PRIORITY */
         if (strncmp(move, "SET_PRIORITY", 12) == 0) {
             int prio = 0;
@@ -259,6 +264,16 @@ static void *pacman_publisher_thread(void *arg) {
    ───────────────────────────────────────────────────────── */
 int main(void) {
     LOG("[P1] Iniciando pacman_process");
+
+    /* Construir la ruta del archivo de movimientos a partir de MAP_DIR,
+       variable de entorno que scheduler_process.c (P0) deja puesta
+       con setenv() antes de hacer fork()+exec() de este proceso. */
+    const char *dir = getenv("MAP_DIR");
+    if (!dir) {
+        fprintf(stderr, "[P1] Falta variable de entorno MAP_DIR\n");
+        return 1;
+    }
+    snprintf(move_file, sizeof(move_file), "%s/pacman_moves.txt", dir);
 
     /* Abrir memoria compartida creada por P0 */
     shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
