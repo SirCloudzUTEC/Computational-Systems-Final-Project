@@ -1,13 +1,3 @@
-/*
- * menu.c — Menú interactivo para PAC-MAN Concurrente
- *
- * Permite elegir caso, configurar ticks y relanzar el juego
- * en un loop hasta que el usuario elija Salir.
- *
- * Compilar: gcc -o menu src/menu.c  (sin flags extra)
- * Usar:     ./menu   (desde el directorio FinalProject/)
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +6,6 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-/* ── ANSI colors ── */
 #define ANSI_RESET   "\033[0m"
 #define ANSI_BOLD    "\033[1m"
 #define ANSI_YELLOW  "\033[33m"
@@ -27,7 +16,6 @@
 #define ANSI_WHITE   "\033[37m"
 #define ANSI_MAGENTA "\033[35m"
 
-/* Rutas relativas a FinalProject/ */
 static const char *CASES[]     = { "maps/Caso1", "maps/Caso2", "maps/Caso3" };
 static const char *CASE_NAMES[] = { "Caso 1 — Básico",
                                     "Caso 2 — SET_PRIORITY",
@@ -35,7 +23,6 @@ static const char *CASE_NAMES[] = { "Caso 1 — Básico",
 #define NUM_CASES 3
 #define DEFAULT_TICKS 300
 
-/* Semáforos y SHM que pueden quedar residuales */
 static const char *RESIDUAL_FILES[] = {
     "/dev/shm/pacman_shm",
     "/dev/shm/sem.pacman_sem_p1",
@@ -43,7 +30,6 @@ static const char *RESIDUAL_FILES[] = {
     NULL
 };
 
-/* ────────────────────────────────────────────────── */
 
 static void clear_screen(void) {
     printf("\033[2J\033[H");
@@ -101,11 +87,9 @@ static void print_case_info(int caso_idx) {
     printf("\n");
 }
 
-/* Lee una línea de stdin, devuelve entero o default_val si vacía/inválida */
 static int read_int_default(int default_val) {
     char buf[64];
     if (!fgets(buf, sizeof(buf), stdin)) return default_val;
-    /* eliminar newline */
     buf[strcspn(buf, "\n")] = '\0';
     if (buf[0] == '\0') return default_val;
     char *end;
@@ -124,20 +108,18 @@ static void run_case(int caso_idx, int max_ticks) {
     printf(ANSI_RESET "\n");
     fflush(stdout);
 
-    /* Limpiar residuos de corridas anteriores y log previo */
+
     cleanup_residuals();
-    remove("pacman.log"); /* log fresco por cada corrida */
+    remove("pacman.log"); 
 
-    sleep(1); /* pausa breve para que el usuario vea el mensaje */
+    sleep(1); 
 
-    /* Ejecutar scheduler_process (que a su vez hace fork de P1/P2/P3) */
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork");
         return;
     }
     if (pid == 0) {
-        /* Proceso hijo: exec scheduler */
         char ticks_str[32];
         snprintf(ticks_str, sizeof(ticks_str), "%d", max_ticks);
         execlp("./scheduler_process", "scheduler_process",
@@ -146,11 +128,9 @@ static void run_case(int caso_idx, int max_ticks) {
         _exit(1);
     }
 
-    /* Proceso padre: esperar a que el scheduler (y todos sus hijos) terminen */
     int status;
     waitpid(pid, &status, 0);
 
-    /* Limpieza post-ejecución */
     cleanup_residuals();
 
     printf("\n" ANSI_CYAN ANSI_BOLD);
@@ -165,14 +145,12 @@ static void run_case(int caso_idx, int max_ticks) {
 
     printf("  Presiona ENTER para volver al menú...");
     fflush(stdout);
-    /* consumir cualquier input residual */
     int c;
     while ((c = getchar()) != '\n' && c != EOF);
 }
 
 
 int main(void) {
-    /* Verificar que estamos en el directorio correcto */
     if (!check_binaries()) {
         printf(ANSI_RED "\n  Asegúrate de ejecutar desde FinalProject/ después de 'make'.\n" ANSI_RESET);
         return 1;
@@ -185,7 +163,6 @@ int main(void) {
         clear_screen();
         print_banner();
 
-        /* Mostrar menú con ticks actuales */
         printf(ANSI_WHITE ANSI_BOLD "  Selecciona una opción:\n" ANSI_RESET "\n");
         for (int i = 0; i < NUM_CASES; i++) {
             printf("    " ANSI_CYAN "[%d]" ANSI_RESET "  %s\n", i + 1, CASE_NAMES[i]);

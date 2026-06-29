@@ -1,18 +1,3 @@
-/*
- * renderer_process.c  (P3)
- * ─────────────────────────
- * Renderiza en terminal usando ncurses:
- *   - Laberinto con colores
- *   - Pac-Man animado (> < ^ v / @)
- *   - Fantasmas con colores
- *   - HUD: tick, score, vidas, power-pellet, prioridades
- *
- * Se bloquea en sem_render_ready (señalizado por P0 en cada tick).
- *
- * FIX: retry loop al abrir SHM (timing race con P0)
- * FIX: cleanup ncurses en cualquier salida
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,7 +12,6 @@
 #include "shared.h"
 #include "utils.h"
 
-/* ── Pares de colores ncurses ── */
 #define COL_WALL      1
 #define COL_PATH      2
 #define COL_PELLET    3
@@ -46,7 +30,7 @@ static int ncurses_active  = 0;
 
 static int prev_pac_x = -1;
 static int prev_pac_y = -1;
-static int last_dir   = 0;  /* 0=R 1=L 2=U 3=D */
+static int last_dir   = 0;  
 
 static const char *pac_sym(int dir, int powered) {
     if (powered) { (void)dir; return "@"; }
@@ -127,7 +111,6 @@ static void render_frame(void) {
     prev_pac_x = pac_x;
     prev_pac_y = pac_y;
 
-    /* ── Mapa ── */
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < cols; c++) {
             char cell = shm->map_grid[r][c];
@@ -170,7 +153,6 @@ static void render_frame(void) {
         }
     }
 
-    /* ── HUD superior (2 líneas) ── */
     attron(COLOR_PAIR(COL_HUD) | A_BOLD);
     mvprintw(0, 0, " PAC-MAN CONCURRENTE");
     mvprintw(1, 0, " Tick:%-4d  Score:%-6d  Vidas:%d  Prio[P1:%d P2:%d]",
@@ -183,7 +165,6 @@ static void render_frame(void) {
         attroff(COLOR_PAIR(COL_POWER) | A_BOLD);
     }
 
-    /* ── Leyenda inferior ── */
     int bot = rows + 3;
     attron(COLOR_PAIR(COL_HUD));
     mvprintw(bot, 0, " Fantasmas: ");
@@ -200,7 +181,6 @@ static void render_frame(void) {
     }
     attroff(COLOR_PAIR(COL_HUD));
 
-    /* ── Game Over overlay ── */
     if (game_ov) {
         int mid_r = rows / 2 + 2;
         int mid_c = (cols * 2 / 2) - 12;
@@ -220,7 +200,6 @@ static void render_frame(void) {
 }
 
 int main(void) {
-    /* Retry loop: esperar hasta que P0 cree la SHM (puede tardarse ~200ms) */
     int retries = 30;
     while (retries-- > 0) {
         shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
@@ -236,7 +215,6 @@ int main(void) {
     init_ncurses();
 
     while (1) {
-        /* timeout en sem_wait para no quedar bloqueado si P0 muere */
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += 1;

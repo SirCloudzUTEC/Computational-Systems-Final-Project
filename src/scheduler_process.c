@@ -1,16 +1,3 @@
-/*
- * scheduler_process.c  (P0)
- * ─────────────────────────
- * Responsabilidades:
- *   - Inicializar memoria compartida, semáforos y mutex POSIX.
- *   - Leer map.txt y cargarlo en shared state.
- *   - Crear P1, P2 y P3 (fork).
- *   - Ciclo principal: tick_thread + scheduler_thread + signal_thread.
- *   - Procesar solicitudes de cambio de prioridad.
- *   - Detectar colisiones publicadas por P2 y gestionar vidas.
- *   - Señalizar fin de juego y esperar hijos.
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,34 +13,22 @@
 #include "shared.h"
 #include "utils.h"
 
-/* ── semáforos nombrados (externos, entre procesos) ── */
 static sem_t *sem_pacman = NULL;
 static sem_t *sem_enemy  = NULL;
 
-/* ── memoria compartida ── */
 static SharedState *shm = NULL;
 static int          shm_fd = -1;
 
-/* ── estado del scheduler ── */
-static int round_robin_turn = 0;  /* 0=pacman, 1=enemy (para desempate) */
+static int round_robin_turn = 0; 
 
-// aging
-// Cada tick que un proceso NO gana, acumula "espera". Esa espera se
-//  convierte en prioridad efectiva extra, así nunca puede quedar
-//  bloqueado indefinidamente sin importar las prioridades base.
-
-#define AGING_FACTOR 2   // puntos de prioridad efectiva por tick de espera
+#define AGING_FACTOR 2  
 static int wait_pacman = 0;
 static int wait_enemy  = 0;
 
-/* ── prototipos de hilos ── */
 static void *tick_thread_fn(void *arg);
 static void *scheduler_thread_fn(void *arg);
 static void *signal_thread_fn(void *arg);
 
-/* ─────────────────────────────────────────────────────────
-   Lectura del mapa
-   ───────────────────────────────────────────────────────── */
 static int load_map(const char *path) {
     FILE *f = fopen(path, "r");
     if (!f) { perror("fopen map.txt"); return -1; }
@@ -74,14 +49,13 @@ static int load_map(const char *path) {
     shm->map_rows = row;
     fclose(f);
 
-    /* Identificar posiciones iniciales */
     for (int r = 0; r < shm->map_rows; r++) {
         for (int c = 0; c < shm->map_cols; c++) {
             char ch = shm->map_grid[r][c];
             if (ch == CELL_PACMAN) {
                 shm->pacman_x = c;
                 shm->pacman_y = r;
-                shm->map_grid[r][c] = CELL_PATH; /* celda libre tras posicionar */
+                shm->map_grid[r][c] = CELL_PATH; 
             } else if (ch == CELL_GHOST_A) {
                 shm->ghost_x[0] = c; shm->ghost_y[0] = r;
                 shm->ghost_active[0] = 1;
@@ -106,11 +80,7 @@ static int load_map(const char *path) {
     return 0;
 }
 
-/* ─────────────────────────────────────────────────────────
-   Inicialización de memoria compartida y sincronización
-   ───────────────────────────────────────────────────────── */
 static int init_shared(void) {
-    /* Limpiar objetos previos */
     shm_unlink(SHM_NAME);
     sem_unlink(SEM_PACMAN);
     sem_unlink(SEM_ENEMY);
@@ -125,7 +95,6 @@ static int init_shared(void) {
     if (shm == MAP_FAILED) { perror("mmap"); return -1; }
     memset(shm, 0, sizeof(SharedState));
 
-    /* Estado inicial */
     shm->global_tick   = 0;
     shm->max_ticks     = DEFAULT_MAX_TICKS;
     shm->game_over     = 0;
@@ -135,7 +104,6 @@ static int init_shared(void) {
     shm->prioridad_pacman = 20;
     shm->prioridad_enemy  = 25;
 
-    /* Mutex entre procesos (PTHREAD_PROCESS_SHARED) */
     pthread_mutexattr_t ma;
     pthread_mutexattr_init(&ma);
     pthread_mutexattr_setpshared(&ma, PTHREAD_PROCESS_SHARED);
@@ -148,11 +116,9 @@ static int init_shared(void) {
     pthread_mutex_init(&shm->mutex_power,       &ma);
     pthread_mutexattr_destroy(&ma);
 
-    /* Semáforo embebido para renderer (PTHREAD_PROCESS_SHARED) */
     pthread_mutexattr_t dummy; (void)dummy;
-    sem_init(&shm->sem_render_ready, 1 /*pshared*/, 0);
+    sem_init(&shm->sem_render_ready, 1, 0);
 
-    /* Semáforos nombrados para señalizar P1 y P2 */
     sem_pacman = sem_open(SEM_PACMAN, O_CREAT | O_EXCL, 0666, 0);
     if (sem_pacman == SEM_FAILED) { perror("sem_open pacman"); return -1; }
     sem_enemy  = sem_open(SEM_ENEMY,  O_CREAT | O_EXCL, 0666, 0);
@@ -162,9 +128,6 @@ static int init_shared(void) {
     return 0;
 }
 
-/* ─────────────────────────────────────────────────────────
-   Procesamiento de solicitudes de prioridad
-   ───────────────────────────────────────────────────────── */
 static void process_priority_requests(void) {
     pthread_mutex_lock(&shm->mutex_priority);
 
@@ -191,9 +154,6 @@ static void process_priority_requests(void) {
     pthread_mutex_unlock(&shm->mutex_priority);
 }
 
-/* ─────────────────────────────────────────────────────────
-   Procesamiento de colisiones publicadas por P2
-   ───────────────────────────────────────────────────────── */
 static void process_collision(void) {
     pthread_mutex_lock(&shm->mutex_collision);
     if (!shm->collision_detected) {
@@ -201,7 +161,6 @@ static void process_collision(void) {
         return;
     }
 
-    /* ¿Pac-Man tiene power-pellet activo? */
     pthread_mutex_lock(&shm->mutex_power);
     int powered = (shm->pacman_power > 0);
     pthread_mutex_unlock(&shm->mutex_power);
@@ -222,27 +181,18 @@ static void process_collision(void) {
     pthread_mutex_unlock(&shm->mutex_collision);
 }
 
-/* ─────────────────────────────────────────────────────────
-   Tick thread: incrementa global_tick
-   ───────────────────────────────────────────────────────── */
 static void *tick_thread_fn(void *arg) {
     (void)arg;
     while (!shm->game_over) {
         ms_sleep(TICK_DELAY_MS);
-        /* El scheduler_thread usa global_tick; lo incrementamos bajo mutex ligero.
-           No necesita mutex pesado porque scheduler_thread solo lo lee, no lo modifica. */
         __atomic_fetch_add(&shm->global_tick, 1, __ATOMIC_SEQ_CST);
     }
     return NULL;
 }
 
-/* ─────────────────────────────────────────────────────────
-   Scheduler thread: decide quién ejecuta este tick
-   (actualiza round_robin_turn y decide el ganador)
-   ───────────────────────────────────────────────────────── */
 typedef struct {
-    int *winner;     /* 0=pacman, 1=enemy */
-    int *ready;      /* flag para signal_thread */
+    int *winner;    
+    int *ready;     
     pthread_mutex_t *mtx;
     pthread_cond_t  *cond;
 } SchedArgs;
@@ -261,13 +211,11 @@ static void *scheduler_thread_fn(void *arg) {
         if (cur == last_tick) { usleep(1000); continue; }
         last_tick = cur;
 
-        /* procesar solicitudes de prioridad al inicio del tick */
         process_priority_requests();
         process_collision();
 
         if (shm->game_over) break;
 
-        /* check tick máximo */
         if (cur >= shm->max_ticks) {
             shm->game_over = 1;
             snprintf(shm->win_reason, sizeof(shm->win_reason),
@@ -275,12 +223,10 @@ static void *scheduler_thread_fn(void *arg) {
             break;
         }
 
-        /* decrementar power-pellet */
         pthread_mutex_lock(&shm->mutex_power);
         if (shm->pacman_power > 0) shm->pacman_power--;
         pthread_mutex_unlock(&shm->mutex_power);
 
-        /* decidir ganador (prioridad base + aging por espera) */
         int pp, pe;
         pthread_mutex_lock(&shm->mutex_priority);
         pp = shm->prioridad_pacman;
@@ -294,12 +240,10 @@ static void *scheduler_thread_fn(void *arg) {
         if (eff_pp > eff_pe)      winner = 0;
         else if (eff_pe > eff_pp) winner = 1;
         else {
-            /* round-robin */
             winner = round_robin_turn;
             round_robin_turn ^= 1;
         }
 
-        /* el ganador resetea su espera; el perdedor acumula otro tick */
         if (winner == 0) { wait_pacman = 0; wait_enemy++; }
         else              { wait_enemy = 0;  wait_pacman++; }
 
@@ -313,7 +257,6 @@ static void *scheduler_thread_fn(void *arg) {
         pthread_mutex_unlock(&sched_mtx);
     }
 
-    /* despertar signal_thread para que pueda salir */
     pthread_mutex_lock(&sched_mtx);
     sched_ready = 1;
     pthread_cond_signal(&sched_cond);
@@ -321,9 +264,6 @@ static void *scheduler_thread_fn(void *arg) {
     return NULL;
 }
 
-/* ─────────────────────────────────────────────────────────
-   Signal thread: envía el semáforo al proceso ganador
-   ───────────────────────────────────────────────────────── */
 static void *signal_thread_fn(void *arg) {
     (void)arg;
     while (1) {
@@ -349,22 +289,16 @@ static void *signal_thread_fn(void *arg) {
                 shm->prioridad_enemy);
         }
 
-        /* señalizar renderer en cada tick */
         sem_post(&shm->sem_render_ready);
     }
 
-    /* señal final al renderer para que salga */
     sem_post(&shm->sem_render_ready);
     return NULL;
 }
 
-/* ─────────────────────────────────────────────────────────
-   Liberación de recursos
-   ───────────────────────────────────────────────────────── */
 static void cleanup(void) {
     if (sem_pacman) { sem_close(sem_pacman); sem_unlink(SEM_PACMAN); }
     if (sem_enemy)  { sem_close(sem_enemy);  sem_unlink(SEM_ENEMY);  }
-    /* SEM_RENDER es embebido en SHM (sem_init), no nombrado — no se hace sem_unlink */
 
     if (shm && shm != MAP_FAILED) {
         pthread_mutex_destroy(&shm->mutex_pacman_pos);
@@ -380,9 +314,6 @@ static void cleanup(void) {
     shm_unlink(SHM_NAME);
 }
 
-/* ─────────────────────────────────────────────────────────
-   main de P0
-   ───────────────────────────────────────────────────────── */
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         fprintf(stderr, "Uso: %s <carpeta_caso> [max_ticks]\n", argv[0]);
@@ -394,10 +325,6 @@ int main(int argc, char *argv[]) {
 
     char map_path[256];
     snprintf(map_path, sizeof(map_path), "%s/map.txt", map_dir);
-
-    /* P1 y P2 leen esta variable de entorno para saber de qué carpeta
-       de caso (Caso1/Caso2/Caso3) deben tomar sus archivos de movimiento.
-       setenv() hace que la hereden automáticamente en fork()+execlp(). */
     setenv("MAP_DIR", map_dir, 1);
 
     LOG("[P0] Iniciando scheduler_process");
@@ -407,7 +334,6 @@ int main(int argc, char *argv[]) {
 
     if (load_map(map_path) < 0) { cleanup(); return 1; }
 
-    /* Crear P3 primero (renderer) */
     pid_t pid_p3 = fork();
     if (pid_p3 < 0) { perror("fork p3"); cleanup(); return 1; }
     if (pid_p3 == 0) {
@@ -415,7 +341,6 @@ int main(int argc, char *argv[]) {
         perror("execlp renderer_process"); exit(1);
     }
 
-    /* Crear P1 */
     pid_t pid_p1 = fork();
     if (pid_p1 < 0) { perror("fork p1"); cleanup(); return 1; }
     if (pid_p1 == 0) {
@@ -423,7 +348,6 @@ int main(int argc, char *argv[]) {
         perror("execlp pacman_process"); exit(1);
     }
 
-    /* Crear P2 */
     pid_t pid_p2 = fork();
     if (pid_p2 < 0) { perror("fork p2"); cleanup(); return 1; }
     if (pid_p2 == 0) {
@@ -433,10 +357,8 @@ int main(int argc, char *argv[]) {
 
     LOG("[P0] Procesos creados: P1=%d P2=%d P3=%d", pid_p1, pid_p2, pid_p3);
 
-    /* Pequeña pausa para que los hijos abran la SHM */
     ms_sleep(200);
 
-    /* Lanzar hilos de P0 */
     pthread_t thr_tick, thr_sched, thr_signal;
     pthread_create(&thr_tick,   NULL, tick_thread_fn,      NULL);
     pthread_create(&thr_sched,  NULL, scheduler_thread_fn, NULL);
@@ -450,13 +372,10 @@ int main(int argc, char *argv[]) {
     LOG("[P0] Score final: %d | Vidas: %d | Ticks: %d",
         shm->pacman_score, shm->pacman_lives, shm->global_tick);
 
-    /* Liberar semáforos para que P1/P2 puedan terminar (múltiples posts por seguridad) */
     sem_post(sem_pacman); sem_post(sem_pacman);
     sem_post(sem_enemy);  sem_post(sem_enemy);
-    /* señal final al renderer */
     sem_post(&shm->sem_render_ready);
 
-    /* Esperar hijos */
     waitpid(pid_p1, NULL, 0);
     waitpid(pid_p2, NULL, 0);
     waitpid(pid_p3, NULL, 0);

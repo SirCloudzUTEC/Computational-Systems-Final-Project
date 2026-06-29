@@ -1,12 +1,3 @@
-/*
- * pacman_process.c  (P1)
- * ──────────────────────
- * Hilos:
- *   movement_reader_thread   → lee pacman_moves.txt e inserta en cola interna
- *   movement_executor_thread → espera semáforo de P0, consume de cola, mueve Pac-Man
- *   pacman_publisher_thread  → publica estado en memoria compartida
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,38 +11,29 @@
 #include "shared.h"
 #include "utils.h"
 
-/* La ruta del archivo de movimientos ya no es fija: se construye en main()
-   a partir de la variable de entorno MAP_DIR (ver más abajo). */
 static char move_file[256];
 #define QUEUE_SIZE  256
 
-/* ── Cola interna de movimientos ── */
 typedef struct {
     char moves[QUEUE_SIZE][32];
     int  head, tail, count;
     pthread_mutex_t mtx;
-    sem_t           avail;   /* indica items disponibles */
+    sem_t           avail;   
 } MoveQueue;
 
 static MoveQueue mq;
 
-/* ── Estado local de Pac-Man (solo P1 escribe) ── */
 static int local_x, local_y, local_score;
 
-/* ── Memoria compartida ── */
 static SharedState *shm = NULL;
 static int          shm_fd = -1;
 static sem_t       *sem_p1 = NULL;
 
-/* ── Estado a publicar (doble buffer mínimo) ── */
 static int pub_x, pub_y, pub_score;
 static int pub_pending = 0;
 static pthread_mutex_t pub_mtx = PTHREAD_MUTEX_INITIALIZER;
 static sem_t           pub_sem;
 
-/* ─────────────────────────────────────────────────────────
-   Inicializar cola
-   ───────────────────────────────────────────────────────── */
 static void queue_init(void) {
     memset(&mq, 0, sizeof(mq));
     pthread_mutex_init(&mq.mtx, NULL);
@@ -87,15 +69,11 @@ static int queue_pop(char *out, size_t outsz) {
     return 0;
 }
 
-/* ─────────────────────────────────────────────────────────
-   movement_reader_thread
-   ───────────────────────────────────────────────────────── */
 static void *movement_reader_thread(void *arg) {
     (void)arg;
     FILE *f = fopen(move_file, "r");
     if (!f) {
         LOG("[P1-reader] No se pudo abrir %s", move_file);
-        /* insertar token de fin */
         queue_push("EOF");
         return NULL;
     }
@@ -103,12 +81,10 @@ static void *movement_reader_thread(void *arg) {
     char line[64];
     while (fgets(line, sizeof(line), f)) {
         if (shm->game_over) break;
-        /* trim */
         int len = (int)strlen(line);
         while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r' || line[len-1] == ' '))
             line[--len] = '\0';
         if (len == 0) continue;
-        /* esperar si la cola está llena */
         while (1) {
             pthread_mutex_lock(&mq.mtx);
             int full = (mq.count >= QUEUE_SIZE);
@@ -125,9 +101,6 @@ static void *movement_reader_thread(void *arg) {
     return NULL;
 }
 
-/* ─────────────────────────────────────────────────────────
-   Aplicar movimiento en el mapa
-   ───────────────────────────────────────────────────────── */
 static void apply_move(const char *dir) {
     int dx, dy;
     direction_delta(dir, &dx, &dy);
@@ -135,7 +108,6 @@ static void apply_move(const char *dir) {
     int ny = local_y + dy;
 
     pthread_mutex_lock(&shm->mutex_map);
-    /* validar límites y celda */
     if (nx < 0 || nx >= shm->map_cols || ny < 0 || ny >= shm->map_rows) {
         pthread_mutex_unlock(&shm->mutex_map);
         LOG("[P1-exec] Movimiento %s fuera de mapa — ignorado", dir);
@@ -148,7 +120,6 @@ static void apply_move(const char *dir) {
         return;
     }
 
-    /* consumir pellet */
     if (cell == CELL_PELLET) {
         shm->map_grid[ny][nx] = CELL_PATH;
         local_score += 50;
@@ -159,7 +130,6 @@ static void apply_move(const char *dir) {
 
         LOG("[P1-exec] *** POWER PELLET! Power activo por %d ticks ***", POWER_DURATION);
     } else {
-        /* camino normal → punto */
         local_score += 10;
     }
     pthread_mutex_unlock(&shm->mutex_map);
@@ -169,19 +139,14 @@ static void apply_move(const char *dir) {
     LOG("[P1-exec] Pac-Man → (%d,%d) score=%d", local_x, local_y, local_score);
 }
 
-/* ─────────────────────────────────────────────────────────
-   movement_executor_thread
-   ───────────────────────────────────────────────────────── */
 static void *movement_executor_thread(void *arg) {
     (void)arg;
     char move[32];
 
     while (!shm->game_over) {
-        /* Esperar turno de P0 */
         sem_wait(sem_p1);
         if (shm->game_over) break;
 
-        /* Consumir instrucción de la cola */
         if (queue_pop(move, sizeof(move)) < 0) {
             LOG("[P1-exec] Cola vacía inesperada");
             continue;
@@ -198,7 +163,6 @@ static void *movement_executor_thread(void *arg) {
             pthread_mutex_unlock(&shm->mutex_collision);
             break;
         }
-        /* SET_PRIORITY */
         if (strncmp(move, "SET_PRIORITY", 12) == 0) {
             int prio = 0;
             sscanf(move + 12, " %d", &prio);
@@ -207,15 +171,12 @@ static void *movement_executor_thread(void *arg) {
             shm->priority_request_active  = 1;
             pthread_mutex_unlock(&shm->mutex_priority);
             LOG("[P1-exec] Solicitud SET_PRIORITY %d enviada a P0", prio);
-            /* este turno fue consumido */
             goto publish;
         }
 
-        /* Movimiento direccional */
         apply_move(move);
 
     publish:
-        /* señalizar publisher */
         pthread_mutex_lock(&pub_mtx);
         pub_x = local_x;
         pub_y = local_y;
@@ -224,17 +185,13 @@ static void *movement_executor_thread(void *arg) {
         pthread_mutex_unlock(&pub_mtx);
         sem_post(&pub_sem);
     }
-    sem_post(&pub_sem); /* despertar publisher para que salga */
+    sem_post(&pub_sem); 
     return NULL;
 }
 
-/* ─────────────────────────────────────────────────────────
-   pacman_publisher_thread
-   ───────────────────────────────────────────────────────── */
 static void *pacman_publisher_thread(void *arg) {
     (void)arg;
     while (1) {
-        /* timedwait para no quedar bloqueado si game_over llega sin post */
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += 1;
@@ -253,7 +210,6 @@ static void *pacman_publisher_thread(void *arg) {
         pub_pending = 0;
         pthread_mutex_unlock(&pub_mtx);
 
-        /* Publicar en memoria compartida */
         pthread_mutex_lock(&shm->mutex_pacman_pos);
         shm->pacman_x     = px;
         shm->pacman_y     = py;
@@ -267,15 +223,10 @@ static void *pacman_publisher_thread(void *arg) {
     return NULL;
 }
 
-/* ─────────────────────────────────────────────────────────
-   main de P1
-   ───────────────────────────────────────────────────────── */
+
 int main(void) {
     LOG("[P1] Iniciando pacman_process");
 
-    /* Construir la ruta del archivo de movimientos a partir de MAP_DIR,
-       variable de entorno que scheduler_process.c (P0) deja puesta
-       con setenv() antes de hacer fork()+exec() de este proceso. */
     const char *dir = getenv("MAP_DIR");
     if (!dir) {
         fprintf(stderr, "[P1] Falta variable de entorno MAP_DIR\n");
@@ -283,13 +234,11 @@ int main(void) {
     }
     snprintf(move_file, sizeof(move_file), "%s/pacman_moves.txt", dir);
 
-    /* Abrir memoria compartida creada por P0 */
     shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
     if (shm_fd < 0) { perror("[P1] shm_open"); return 1; }
     shm = mmap(NULL, sizeof(SharedState), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shm == MAP_FAILED) { perror("[P1] mmap"); return 1; }
 
-    /* Abrir semáforo nombrado */
     sem_p1 = sem_open(SEM_PACMAN, 0);
     if (sem_p1 == SEM_FAILED) { perror("[P1] sem_open"); return 1; }
 

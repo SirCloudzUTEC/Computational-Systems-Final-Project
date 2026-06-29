@@ -1,7 +1,3 @@
-# ─────────────────────────────────────────────
-# Makefile — PAC-MAN concurrente (procesos+hilos)
-# ─────────────────────────────────────────────
-
 CC      = gcc
 CFLAGS  = -Wall -Wextra -O2 -g \
            -I./include \
@@ -33,7 +29,6 @@ enemy_process: $(SRC)/enemy_process.c include/shared.h include/utils.h
 renderer_process: $(SRC)/renderer_process.c include/shared.h include/utils.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-# Lanzar menú interactivo
 run: all
 	./menu
 
