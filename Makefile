@@ -11,7 +11,8 @@ TARGETS = scheduler_process \
           pacman_process     \
           enemy_process      \
           renderer_process   \
-          menu
+          menu               \
+          time_tester
 
 .PHONY: all clean run
 
@@ -34,6 +35,9 @@ run: all
 
 menu: $(SRC)/menu.c
 	$(CC) -Wall -Wextra -O2 -g -o $@ $<
+
+time_tester: $(SRC)/time_tester.c include/shared.h include/utils.h
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 clean:
 	rm -f $(TARGETS) menu
