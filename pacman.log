@@ -1,54 +1,45 @@
-[5954.343] [P0] Iniciando scheduler_process
-[5954.343] [P0] Memoria compartida y semáforos inicializados
-[5954.343] [P0] Mapa cargado: 10 filas x 10 cols
-[5954.343] [P0] Pac-Man inicial: (4,4)
-[5954.343] [P0] Procesos creados: P1=25640 P2=25641 P3=25639
-[5954.344] [P1] Iniciando pacman_process
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Encolado: 'UP'
-[5954.344] [P1-reader] Fin de archivo de movimientos
-[5954.344] [P2] Iniciando enemy_process
-[5954.544] [P0] tick=0 prioridad_efectiva pacman=20(base 20,wait 1) enemy=25(base 25,wait 0)
-[5954.544] [P0] tick=0 → turno ENEMY (P20=20, E25=25)
-[5954.544] [P2-ctrl] Turno recibido — despertando ghost threads
-[5954.544] [P2-ghost0] → (4,5)
-[5954.544] [P2-ghost2] → (4,1)
-[5954.544] [P2-ghost1] → (7,1)
-[5954.544] [P2-ghost3] → (7,6)
-[5954.544] [P2-ctrl] Todos los fantasmas completaron su movimiento
-[5954.545] [P0] tick=20 prioridad_efectiva pacman=22(base 20,wait 2) enemy=25(base 25,wait 0)
-[5954.545] [P0] tick=23 → turno ENEMY (P20=20, E25=25)
-[5954.545] [P2-ctrl] Turno recibido — despertando ghost threads
-[5954.545] [P2-ghost0] → (4,4)
-[5954.545] [P2-ghost2] → (4,2)
-[5954.545] [P2-ghost1] → (6,1)
-[5954.545] [P2-ghost3] → (6,6)
-[5954.545] [P2-ctrl] Todos los fantasmas completaron su movimiento
-[5954.546] [P0] tick=40 prioridad_efectiva pacman=24(base 20,wait 3) enemy=25(base 25,wait 0)
-[5954.546] [P0] tick=42 → turno ENEMY (P20=20, E25=25)
-[5954.546] [P2-ctrl] Turno recibido — despertando ghost threads
-[5954.546] [P2-ghost2] → (4,3)
-[5954.546] [P2-ghost3] → (5,6)
-[5954.546] [P2-ghost0] → (4,3)
-[5954.546] [P2-ghost1] → (5,1)
-[5954.546] [P2-ctrl] Todos los fantasmas completaron su movimiento
-[5954.547] [P0] Fin del juego: Ticks máximos alcanzados (50)
-[5954.547] [P0] Score final: 0 | Vidas: 3 | Ticks: 61
-[5954.547] [P1] pacman_process terminado
-[5954.565] [P2] enemy_process terminado
+[6871.764] [P0] Iniciando scheduler_process
+[6871.764] [P0] Memoria compartida y semáforos inicializados
+[6871.764] [P0] Mapa cargado: 10 filas x 10 cols
+[6871.764] [P0] Pac-Man inicial: (5,4)
+[6871.764] [P0] Procesos creados: P1=32289 P2=32290 P3=32288
+[6871.764] [P2] Iniciando enemy_process
+[6871.764] [P1] Iniciando pacman_process
+[6871.765] [P1-reader] Encolado: 'DOWN'
+[6871.765] [P1-reader] Encolado: 'RIGHT'
+[6871.765] [P1-reader] Encolado: 'SET_PRIORITY 15'
+[6871.765] [P1-reader] Encolado: 'DOWN'
+[6871.765] [P1-reader] Encolado: 'RIGHT'
+[6871.765] [P1-reader] Encolado: 'SET_PRIORITY 5'
+[6871.765] [P1-reader] Encolado: 'DOWN'
+[6871.765] [P1-reader] Encolado: 'RIGHT'
+[6871.765] [P1-reader] Encolado: 'SET_PRIORITY 1'
+[6871.765] [P1-reader] Fin de archivo de movimientos
+[6871.964] [P0] tick=0 prioridad_efectiva pacman=20(base 20,wait 1) enemy=25(base 25,wait 0)
+[6871.965] [P0] tick=2 → turno ENEMY (P20=20, E25=25)
+[6871.965] [P2-ctrl] Turno recibido — despertando ghost threads
+[6871.965] [P2-ghost0] SET_PRIORITY 10 → enviado a P0
+[6871.965] [P2-ghost2] → (4,4)
+[6871.965] [P2-ghost1] → (6,5)
+[6871.965] [P2-ghost3] → (3,5)
+[6871.965] [P2-ctrl] Todos los fantasmas completaron su movimiento
+[6871.966] [P0] Prioridad Enemy actualizada → 10
+[6871.966] [P0] tick=21 prioridad_efectiva pacman=22(base 20,wait 0) enemy=10(base 10,wait 1)
+[6871.966] [P0] tick=24 → turno PACMAN (P20=20, E10=10)
+[6871.966] [P1-exec] Pac-Man → (5,5) score=10
+[6871.966] [P1-pub] Publicado: (5,5) score=10
+[6871.967] [P0] tick=40 prioridad_efectiva pacman=20(base 20,wait 0) enemy=12(base 10,wait 2)
+[6871.967] [P0] tick=41 prioridad_efectiva pacman=20(base 20,wait 0) enemy=14(base 10,wait 3)
+[6871.967] [P0] tick=41 → turno PACMAN (P20=20, E10=10)
+[6871.967] [P0] tick=41 → turno PACMAN (P20=20, E10=10)
+[6871.967] [P1-exec] *** POWER PELLET! Power activo por 10 ticks ***
+[6871.967] [P1-exec] Pac-Man → (6,5) score=60
+[6871.967] [P1-pub] Publicado: (6,5) score=60
+[6871.967] [P1-exec] Solicitud SET_PRIORITY 15 enviada a P0
+[6871.967] [P1-pub] Publicado: (6,5) score=60
+[6871.968] [P0] Prioridad Pac-Man actualizada → 15
+[6871.968] [P0] Fin del juego: Ticks máximos alcanzados (50)
+[6871.968] [P0] Score final: 60 | Vidas: 3 | Ticks: 62
+[6871.968] [P1] pacman_process terminado
+[6871.987] [P2] enemy_process terminado
+[6874.968] [P0] Todos los procesos terminaron. ¡Fin!
