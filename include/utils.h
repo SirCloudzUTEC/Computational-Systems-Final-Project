@@ -36,7 +36,7 @@ static inline FILE *log_get_file(void) {
     } while(0)
 
 /* ── delay configurable entre ticks (ms) ── */
-#define TICK_DELAY_MS 400
+#define TICK_DELAY_MS 0
 
 static inline void ms_sleep(int ms) {
     struct timespec ts = { .tv_sec = ms / 1000,
