@@ -100,7 +100,7 @@ static void render_frame(void) {
     int tick    = shm->global_tick;
     int prio_p  = shm->prioridad_pacman;
     int prio_e  = shm->prioridad_enemy;
-    int game_ov = shm->game_over;
+    int game_ov = GAME_OVER_GET(shm);
 
     if (prev_pac_x >= 0) {
         if      (pac_x > prev_pac_x) last_dir = 0;
@@ -220,11 +220,11 @@ int main(void) {
         ts.tv_sec += 1;
         int r = sem_timedwait(&shm->sem_render_ready, &ts);
         if (r < 0 && errno == ETIMEDOUT) {
-            if (shm->game_over) break;
+            if (GAME_OVER_GET(shm)) break;
             continue;
         }
         render_frame();
-        if (shm->game_over) {
+        if (GAME_OVER_GET(shm)) {
             render_frame();
             ms_sleep(3000);
             break;

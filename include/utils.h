@@ -8,6 +8,10 @@
 #include <time.h>
 #include "shared.h"
 
+/* ── acceso atómico a game_over (evita lecturas sucias entre threads/procesos) ── */
+#define GAME_OVER_SET(shm)  __atomic_store_n(&(shm)->game_over, 1, __ATOMIC_SEQ_CST)
+#define GAME_OVER_GET(shm)  __atomic_load_n(&(shm)->game_over, __ATOMIC_SEQ_CST)
+
 /* ── logging a archivo (evita mezclar con ncurses en terminal) ──
  *
  * Todos los procesos (P0/P1/P2/P3) escriben en pacman.log en lugar
@@ -36,7 +40,13 @@ static inline FILE *log_get_file(void) {
     } while(0)
 
 /* ── delay configurable entre ticks (ms) ── */
-#define TICK_DELAY_MS 0
+/* TICK_DELAY_MS: configurable via env var PACMAN_TICK_MS (para benchmark usar 0) */
+static inline int get_tick_delay_ms(void) {
+    const char *env = getenv("PACMAN_TICK_MS");
+    if (env) { int v = atoi(env); if (v >= 0) return v; }
+    return 400; /* default interactivo */
+}
+#define TICK_DELAY_MS (get_tick_delay_ms())
 
 static inline void ms_sleep(int ms) {
     struct timespec ts = { .tv_sec = ms / 1000,

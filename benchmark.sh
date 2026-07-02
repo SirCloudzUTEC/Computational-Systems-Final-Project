@@ -1,42 +1,78 @@
 #!/bin/bash
-# benchmark.sh — Corre 1000 iteraciones por caso y calcula los tiempos promedio.
+# benchmark.sh — Mide el tiempo de ejecución promedio por caso.
+# Uso: ./benchmark.sh [iteraciones] [ticks]
+# Ej:  ./benchmark.sh 10 50
 
-# Asegurar que el ejecutable de pruebas esté compilado
 if [ ! -f "./time_tester" ]; then
-    echo "Compilando proyecto..."
+    echo "[benchmark] Compilando time_tester..."
     make time_tester
 fi
 
-ITERACIONES=1000
+ITERACIONES=${1:-10}
+TICKS=${2:-50}
 CASOS=("Caso1" "Caso2" "Caso3")
 
 echo "=================================================="
-echo "   INICIANDO BENCHMARK MASIVO (1000 ITERACIONES)   "
+echo "   BENCHMARK PAC-MAN CONCURRENTE"
+echo "   Iteraciones: $ITERACIONES | Ticks por corrida: $TICKS"
 echo "=================================================="
 
-echo "Caso,Iteracion,Tiempo_ms" > resultados_detallados.csv
+CSV="resultados_benchmark.csv"
+echo "Caso,Iteracion,Tiempo_ms" > "$CSV"
 
 for CASO in "${CASOS[@]}"; do
+    echo ""
     echo "---> Procesando $CASO..."
-    SUMA_TIEMPOS=0
-    
-    for (i=1; i<=ITERACIONES; i++)); do
-        TIEMPO_MS=$(./time_tester "maps/$CASO" 300 | grep "Tiempo Equivalente:" | awk '{print $3}')
-        
+    SUMA="0"
+    MIN=""
+    MAX="0"
+    VALIDOS=0
+
+    for ((i=1; i<=ITERACIONES; i++)); do
+        # Limpiar residuos entre corridas
+        rm -f /dev/shm/pacman_shm \
+              /dev/shm/sem.pacman_sem_p1 \
+              /dev/shm/sem.pacman_sem_p2 \
+              pacman.log
+
+        # Ejecutar y capturar solo la línea TIME_MS
+        TIEMPO_MS=$(./time_tester "maps/$CASO" "$TICKS" 2>/dev/null \
+                    | grep '^TIME_MS:' | cut -d: -f2)
+
         if [ -z "$TIEMPO_MS" ]; then
-            TIEMPO_MS=0
+            echo "  [!] Iter $i: sin resultado, saltando"
+            echo "$CASO,$i,ERROR" >> "$CSV"
+            continue
         fi
-        
-        echo "$CASO,$i,$TIEMPO_MS" >> resultados_detallados.csv
-        
-        SUMA_TIEMPOS=$(echo "$SUMA_TIEMPOS + $TIEMPO_MS" | bc)
+
+        echo "$CASO,$i,$TIEMPO_MS" >> "$CSV"
+        SUMA=$(echo "$SUMA + $TIEMPO_MS" | bc)
+        VALIDOS=$((VALIDOS + 1))
+
+        # Min/Max
+        if [ -z "$MIN" ]; then
+            MIN="$TIEMPO_MS"
+        else
+            [ "$(echo "$TIEMPO_MS < $MIN" | bc)" = "1" ] && MIN="$TIEMPO_MS"
+        fi
+        [ "$(echo "$TIEMPO_MS > $MAX" | bc)" = "1" ] && MAX="$TIEMPO_MS"
+
+        printf "  Iter %3d/%d: %s ms\n" "$i" "$ITERACIONES" "$TIEMPO_MS"
     done
-    
-    # Calcular la media (promedio)
-    MEDIA_MS=$(echo "scale=4; $SUMA_TIEMPOS / $ITERACIONES" | bc)
-    
-    echo " Finalizado $CASO. Tiempo Promedio (Media): $MEDIA_MS ms"
-    echo "--------------------------------------------------"
+
+    if [ "$VALIDOS" -gt 0 ]; then
+        MEDIA=$(echo "scale=4; $SUMA / $VALIDOS" | bc)
+        echo "  ─────────────────────────────────────"
+        echo "  Válidas : $VALIDOS / $ITERACIONES"
+        echo "  Media   : $MEDIA ms"
+        echo "  Mínimo  : $MIN ms"
+        echo "  Máximo  : $MAX ms"
+        echo "  ─────────────────────────────────────"
+    else
+        echo "  Sin resultados válidos para $CASO"
+    fi
 done
 
-echo "Analisis masivo completado! Los datos detallados se guardaron en 'resultados_detallados.csv'."
+echo ""
+echo "Resultados guardados en: $CSV"
+echo "=================================================="

@@ -19,7 +19,8 @@ static sem_t *sem_enemy  = NULL;
 static SharedState *shm = NULL;
 static int          shm_fd = -1;
 
-static int round_robin_turn = 0; 
+static int round_robin_turn = 0;
+static int collision_cooldown = 0; /* ticks restantes de inmunidad post-colisión */
 
 #define AGING_FACTOR 2  
 static int wait_pacman = 0;
@@ -155,6 +156,15 @@ static void process_priority_requests(void) {
 }
 
 static void process_collision(void) {
+    /* Cooldown: ignorar colisiones por 3 ticks tras procesar una (ghost sigue en misma celda) */
+    if (collision_cooldown > 0) {
+        collision_cooldown--;
+        pthread_mutex_lock(&shm->mutex_collision);
+        shm->collision_detected = 0;
+        pthread_mutex_unlock(&shm->mutex_collision);
+        return;
+    }
+
     pthread_mutex_lock(&shm->mutex_collision);
     if (!shm->collision_detected) {
         pthread_mutex_unlock(&shm->mutex_collision);
@@ -170,7 +180,7 @@ static void process_collision(void) {
         LOG("[P0] ¡COLISIÓN con fantasma %d! Vidas restantes: %d",
             shm->collision_ghost_id, shm->pacman_lives);
         if (shm->pacman_lives <= 0) {
-            shm->game_over = 1;
+            GAME_OVER_SET(shm);
             snprintf(shm->win_reason, sizeof(shm->win_reason),
                      "Pac-Man sin vidas (tick %d)", shm->global_tick);
         }
@@ -178,12 +188,13 @@ static void process_collision(void) {
         LOG("[P0] Colisión detectada pero Pac-Man tiene power-pellet activo — ignorada");
     }
     shm->collision_detected = 0;
+    if (!GAME_OVER_GET(shm)) collision_cooldown = 3; /* 3 ticks de gracia */
     pthread_mutex_unlock(&shm->mutex_collision);
 }
 
 static void *tick_thread_fn(void *arg) {
     (void)arg;
-    while (!shm->game_over) {
+    while (!GAME_OVER_GET(shm)) {
         ms_sleep(TICK_DELAY_MS);
         __atomic_fetch_add(&shm->global_tick, 1, __ATOMIC_SEQ_CST);
     }
@@ -206,7 +217,7 @@ static void *scheduler_thread_fn(void *arg) {
     (void)arg;
     int last_tick = -1;
 
-    while (!shm->game_over) {
+    while (!GAME_OVER_GET(shm)) {
         int cur = __atomic_load_n(&shm->global_tick, __ATOMIC_SEQ_CST);
         if (cur == last_tick) { usleep(1000); continue; }
         last_tick = cur;
@@ -214,10 +225,10 @@ static void *scheduler_thread_fn(void *arg) {
         process_priority_requests();
         process_collision();
 
-        if (shm->game_over) break;
+        if (GAME_OVER_GET(shm)) break;
 
         if (cur >= shm->max_ticks) {
-            shm->game_over = 1;
+            GAME_OVER_SET(shm);
             snprintf(shm->win_reason, sizeof(shm->win_reason),
                      "Ticks máximos alcanzados (%d)", shm->max_ticks);
             break;
@@ -273,7 +284,7 @@ static void *signal_thread_fn(void *arg) {
         sched_ready = 0;
         pthread_mutex_unlock(&sched_mtx);
 
-        if (shm->game_over) break;
+        if (GAME_OVER_GET(shm)) break;
 
         if (w == 0) {
             sem_post(sem_pacman);

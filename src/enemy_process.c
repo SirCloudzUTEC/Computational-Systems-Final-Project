@@ -67,9 +67,9 @@ static void *ghost_thread_fn(void *arg) {
     int id = ((GhostArg*)arg)->id;
     char line[64];
 
-    while (!shm->game_over) {
+    while (!GAME_OVER_GET(shm)) {
         sem_wait(&sem_ghost_go[id]);
-        if (shm->game_over) { sem_post(&sem_ghost_done[id]); break; }
+        if (GAME_OVER_GET(shm)) { sem_post(&sem_ghost_done[id]); break; }
 
         if (!ghost_files[id]) {
             sem_post(&sem_ghost_done[id]);
@@ -108,9 +108,9 @@ static void *ghost_thread_fn(void *arg) {
 
 static void *enemy_controller_thread(void *arg) {
     (void)arg;
-    while (!shm->game_over) {
+    while (!GAME_OVER_GET(shm)) {
         sem_wait(sem_p2);
-        if (shm->game_over) break;
+        if (GAME_OVER_GET(shm)) break;
 
         LOG("[P2-ctrl] Turno recibido — despertando ghost threads");
 
@@ -135,7 +135,7 @@ static void *enemy_controller_thread(void *arg) {
 
 static void *pacman_tracker_thread(void *arg) {
     (void)arg;
-    while (!shm->game_over) {
+    while (!GAME_OVER_GET(shm)) {
         int px, py;
         pthread_mutex_lock(&shm->mutex_pacman_pos);
         px = shm->pacman_x;
@@ -155,7 +155,7 @@ static void *pacman_tracker_thread(void *arg) {
 
 static void *collision_thread_fn(void *arg) {
     (void)arg;
-    while (!shm->game_over) {
+    while (!GAME_OVER_GET(shm)) {
         usleep(15000); 
 
         pthread_mutex_lock(&mtx_pac_local);

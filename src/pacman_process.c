@@ -80,7 +80,7 @@ static void *movement_reader_thread(void *arg) {
 
     char line[64];
     while (fgets(line, sizeof(line), f)) {
-        if (shm->game_over) break;
+        if (GAME_OVER_GET(shm)) break;
         int len = (int)strlen(line);
         while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r' || line[len-1] == ' '))
             line[--len] = '\0';
@@ -143,9 +143,9 @@ static void *movement_executor_thread(void *arg) {
     (void)arg;
     char move[32];
 
-    while (!shm->game_over) {
+    while (!GAME_OVER_GET(shm)) {
         sem_wait(sem_p1);
-        if (shm->game_over) break;
+        if (GAME_OVER_GET(shm)) break;
 
         if (queue_pop(move, sizeof(move)) < 0) {
             LOG("[P1-exec] Cola vacía inesperada");
@@ -155,8 +155,8 @@ static void *movement_executor_thread(void *arg) {
         if (strcmp(move, "EOF") == 0) {
             LOG("[P1-exec] Sin más movimientos");
             pthread_mutex_lock(&shm->mutex_collision);
-            if (!shm->game_over) {
-                shm->game_over = 1;
+            if (!GAME_OVER_GET(shm)) {
+                GAME_OVER_SET(shm);
                 snprintf(shm->win_reason, sizeof(shm->win_reason),
                         "Pac-Man sin instrucciones (tick %d)", shm->global_tick);
             }
@@ -197,13 +197,13 @@ static void *pacman_publisher_thread(void *arg) {
         ts.tv_sec += 1;
         int r = sem_timedwait(&pub_sem, &ts);
         if (r < 0) {
-            if (shm->game_over) break;
+            if (GAME_OVER_GET(shm)) break;
             continue;
         }
         pthread_mutex_lock(&pub_mtx);
         if (!pub_pending) {
             pthread_mutex_unlock(&pub_mtx);
-            if (shm->game_over) break;
+            if (GAME_OVER_GET(shm)) break;
             continue;
         }
         int px = pub_x, py = pub_y, ps = pub_score;
@@ -218,7 +218,7 @@ static void *pacman_publisher_thread(void *arg) {
 
         LOG("[P1-pub] Publicado: (%d,%d) score=%d", px, py, ps);
 
-        if (shm->game_over) break;
+        if (GAME_OVER_GET(shm)) break;
     }
     return NULL;
 }
