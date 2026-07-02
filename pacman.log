@@ -1,0 +1,54 @@
+[5954.343] [P0] Iniciando scheduler_process
+[5954.343] [P0] Memoria compartida y semáforos inicializados
+[5954.343] [P0] Mapa cargado: 10 filas x 10 cols
+[5954.343] [P0] Pac-Man inicial: (4,4)
+[5954.343] [P0] Procesos creados: P1=25640 P2=25641 P3=25639
+[5954.344] [P1] Iniciando pacman_process
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Encolado: 'UP'
+[5954.344] [P1-reader] Fin de archivo de movimientos
+[5954.344] [P2] Iniciando enemy_process
+[5954.544] [P0] tick=0 prioridad_efectiva pacman=20(base 20,wait 1) enemy=25(base 25,wait 0)
+[5954.544] [P0] tick=0 → turno ENEMY (P20=20, E25=25)
+[5954.544] [P2-ctrl] Turno recibido — despertando ghost threads
+[5954.544] [P2-ghost0] → (4,5)
+[5954.544] [P2-ghost2] → (4,1)
+[5954.544] [P2-ghost1] → (7,1)
+[5954.544] [P2-ghost3] → (7,6)
+[5954.544] [P2-ctrl] Todos los fantasmas completaron su movimiento
+[5954.545] [P0] tick=20 prioridad_efectiva pacman=22(base 20,wait 2) enemy=25(base 25,wait 0)
+[5954.545] [P0] tick=23 → turno ENEMY (P20=20, E25=25)
+[5954.545] [P2-ctrl] Turno recibido — despertando ghost threads
+[5954.545] [P2-ghost0] → (4,4)
+[5954.545] [P2-ghost2] → (4,2)
+[5954.545] [P2-ghost1] → (6,1)
+[5954.545] [P2-ghost3] → (6,6)
+[5954.545] [P2-ctrl] Todos los fantasmas completaron su movimiento
+[5954.546] [P0] tick=40 prioridad_efectiva pacman=24(base 20,wait 3) enemy=25(base 25,wait 0)
+[5954.546] [P0] tick=42 → turno ENEMY (P20=20, E25=25)
+[5954.546] [P2-ctrl] Turno recibido — despertando ghost threads
+[5954.546] [P2-ghost2] → (4,3)
+[5954.546] [P2-ghost3] → (5,6)
+[5954.546] [P2-ghost0] → (4,3)
+[5954.546] [P2-ghost1] → (5,1)
+[5954.546] [P2-ctrl] Todos los fantasmas completaron su movimiento
+[5954.547] [P0] Fin del juego: Ticks máximos alcanzados (50)
+[5954.547] [P0] Score final: 0 | Vidas: 3 | Ticks: 61
+[5954.547] [P1] pacman_process terminado
+[5954.565] [P2] enemy_process terminado
